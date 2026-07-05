@@ -1,15 +1,18 @@
 # Boids: Erlang backend + Swift/Metal frontend
 
 Craig Reynolds' boids where the simulation and the renderer are two separate
-programs — deliberately in two opposite paradigms.
+programs - deliberately in two opposite paradigms.
+
+## Screenshot
+![Screenshot](screenshot.jpg)
 
 The **server** is an Erlang node: every boid is an isolated process
-(`gen_server`) under a `simple_one_for_one` supervisor. No shared memory —
+(`gen_server`) under a `simple_one_for_one` supervisor. No shared memory -
 the flock exists only as messages passing between processes.
 
 The **client** is a macOS app: Metal instanced rendering fed by binary
 frames over TCP. Press a key to kill a random boid process on the server
-and watch the supervisor restart it — the boid visibly teleports, the
+and watch the supervisor restart it - the boid visibly teleports, the
 flock never notices.
 
 Zero external dependencies on both sides: pure OTP, pure
@@ -83,17 +86,43 @@ compiler is available (full Xcode); with Command Line Tools only, it ships
 
 | Key | Effect |
 |-----|--------|
-| K   | `exit(Pid, kill)` on a random boid process. The supervisor restarts it within microseconds at a random position — population stays the same. |
+| K   | `exit(Pid, kill)` on a random boid process. The supervisor restarts it within microseconds at a random position - population stays the same. |
 | B   | Spawn one more boid; the frame size adapts automatically. |
 
 Note the OTP distinction the demo makes visible: a *crash* (K) never
 changes the population, because a `permanent` child is always restarted.
 Removing a boid would be an administrative operation
-(`supervisor:terminate_child/2`) — a different thing than killing it.
+(`supervisor:terminate_child/2`) - a different thing than killing it.
 
-Fault tolerance here is not a feature of the application code — nothing in
+Fault tolerance here is not a feature of the application code - nothing in
 `boid.erl` handles being killed. It is a property of the runtime.
 
 ## License
 
-MIT
+MIT License
+
+Copyright (c) 2026 Mykhailo Makarov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+## Support
+
+If you found this project interesting or useful, you can support my work:
+
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/makarov-mm?style=flat&logo=github)](https://github.com/sponsors/makarov-mm)
