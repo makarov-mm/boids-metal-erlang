@@ -39,9 +39,9 @@ Coordinates are normalized to `[0,1] x [0,1]`; the renderer letterboxes.
 ## Run the server (tested on OTP 25)
 
 ```bash
-cd erlang
+cd server
 mkdir -p ebin
-erlc -o ebin src/*.erl
+erlc -o ebin *.erl
 erl -pa ebin -noshell -eval "flock_server:start(200, 4040)"
 ```
 
