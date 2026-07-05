@@ -1,22 +1,42 @@
 # Boids: Erlang backend + Swift/Metal frontend
 
-The simulation lives on the BEAM: every boid is an isolated Erlang process
-(`gen_server`) under a supervisor. A macOS app connects over TCP and renders
-the flock with Metal instanced drawing. Kill a boid process from the keyboard —
-the supervisor restarts it and you watch it respawn on screen.
+Craig Reynolds' boids where the simulation and the renderer are two separate
+programs — deliberately in two opposite paradigms.
+
+The **server** is an Erlang node: every boid is an isolated process
+(`gen_server`) under a `simple_one_for_one` supervisor. No shared memory —
+the flock exists only as messages passing between processes.
+
+The **client** is a macOS app: Metal instanced rendering fed by binary
+frames over TCP. Press a key to kill a random boid process on the server
+and watch the supervisor restart it — the boid visibly teleports, the
+flock never notices.
 
 Zero external dependencies on both sides: pure OTP, pure
-Metal/MetalKit/Network.framework.
+Metal / MetalKit / Network.framework.
 
 ```
 ┌────────────────────────────┐        ┌───────────────────────────┐
-│  Erlang node               │  TCP   │  macOS app                │
+│  server/  (Erlang node)    │  TCP   │  client/  (macOS app)     │
 │  boid_sup                  │ ─────► │  FlockClient (Network)    │
 │   ├─ boid #1 (gen_server)  │ 60 Hz  │  Renderer (Metal,         │
 │   ├─ boid #2               │ frames │   instanced triangles)    │
 │   └─ ...                   │ ◄───── │  keys: K=chaos, B=spawn   │
 │  flock_server (gen_tcp)    │  cmds  │                           │
 └────────────────────────────┘        └───────────────────────────┘
+```
+
+## Layout
+
+```
+server/   boid.erl          one boid = one supervised gen_server
+          boid_sup.erl      simple_one_for_one supervisor
+          flock_server.erl  gen_tcp server, tick loop, commands
+client/   BoidsMetalApp.swift   SwiftUI shell, HUD
+          FlockClient.swift     TCP client, frame parsing, keyboard
+          Renderer.swift        Metal instanced rendering
+          Shaders.metal         vertex rotation by heading, speed color
+          build.zsh             builds BoidsMetal.app without Xcode
 ```
 
 ## Wire protocol
@@ -28,44 +48,52 @@ frame = count :: uint32
       , count * { x, y, vx, vy } :: 4 * float32     (16 bytes per boid)
 ```
 
-The layout matches MSL `float4` exactly, so the frontend memcpy's the
-payload straight into the Metal instance buffer. No parsing, no conversion.
+The layout matches MSL `float4` exactly, so the client memcpy's the payload
+straight into the Metal instance buffer. No parsing, no conversion.
 
 Commands from client to server, single bytes:
 `0x01` chaos (kill a random boid process), `0x02` spawn one more.
 
 Coordinates are normalized to `[0,1] x [0,1]`; the renderer letterboxes.
 
-## Run the server (tested on OTP 25)
+## Run
 
-```bash
+Server (Erlang/OTP 25+, `brew install erlang`):
+
+```zsh
 cd server
 mkdir -p ebin
 erlc -o ebin *.erl
 erl -pa ebin -noshell -eval "flock_server:start(200, 4040)"
 ```
 
-`test_client.py` in the repo root emulates the renderer and verifies the
-protocol, flock dynamics, and supervisor restarts without needing a Mac.
+Client (Command Line Tools are enough, full Xcode not required):
 
-## Build the macOS app
+```zsh
+cd client
+./build.zsh
+open build/BoidsMetal.app
+```
 
-1. Xcode → New Project → macOS → **App**, product name `BoidsMetal`,
-   interface SwiftUI.
-2. Delete the generated `ContentView.swift` / `BoidsMetalApp.swift`, drag in
-   the four files from `swift/BoidsMetal/`:
-   `BoidsMetalApp.swift`, `Renderer.swift`, `FlockClient.swift`, `Shaders.metal`.
-3. **Important:** target → Signing & Capabilities → App Sandbox → check
-   **Outgoing Connections (Client)**. Without it the sandbox silently blocks
-   the TCP connection.
-4. Start the Erlang server, then Run.
+The build script compiles the Metal shaders offline when the `metal`
+compiler is available (full Xcode); with Command Line Tools only, it ships
+`Shaders.metal` as a resource and the app compiles it at runtime.
 
-## The demo
+## Keys
 
-Press **K**: a `exit(Pid, kill)` is executed on a random boid process on the
-server. The supervisor restarts it within microseconds and the boid visibly
-teleports to a fresh random position. Nothing in the code handles this case —
-fault tolerance is a property of the runtime, not a feature of the app.
+| Key | Effect |
+|-----|--------|
+| K   | `exit(Pid, kill)` on a random boid process. The supervisor restarts it within microseconds at a random position — population stays the same. |
+| B   | Spawn one more boid; the frame size adapts automatically. |
 
-Press **B** to grow the flock live; the frame size adapts automatically
-(the frontend reads `count` from every frame).
+Note the OTP distinction the demo makes visible: a *crash* (K) never
+changes the population, because a `permanent` child is always restarted.
+Removing a boid would be an administrative operation
+(`supervisor:terminate_child/2`) — a different thing than killing it.
+
+Fault tolerance here is not a feature of the application code — nothing in
+`boid.erl` handles being killed. It is a property of the runtime.
+
+## License
+
+MIT
